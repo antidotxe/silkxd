@@ -35,6 +35,6 @@ public final class Velocity extends Module {
     }
 
     private boolean chanceCheck() {
-        return (Math.random() * 100 >= chance.getValueFloat());
+        return (Math.random() * 100 < chance.getValueFloat());
     }
 }
