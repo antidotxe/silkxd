@@ -20,47 +20,29 @@ import net.minecraft.util.math.Vec3d;
 
 public class AimAssist extends Module {
 
-    private final NumberSetting maxYawSpeed = new NumberSetting("Max Yaw Speed", 0.1, 5.0, 2.0, 0.1);
-    private final NumberSetting minYawSpeed = new NumberSetting("Min Yaw Speed", 0.1, 5.0, 2.0, 0.1);
-
-    private final NumberSetting minPitchSpeed = new NumberSetting("Min Pitch Speed", 0.1, 5.0, 2.0, 0.1);
-    private final NumberSetting maxPitchSpeed = new NumberSetting("Max Pitch Speed", 0.1, 5.0, 2.0, 0.1);
-
     private final NumberSetting fov = new NumberSetting("FOV", 10.0, 180.0, 90.0, 1.0);
-    private final NumberSetting range = new NumberSetting("Range", 1.0, 10.0, 4.5, 0.1);
-    private final NumberSetting smoothing = new NumberSetting("Smoothing", 1.0, 20.0, 10.0, 0.5);
-    private final NumberSetting pitchThreshold = new NumberSetting("Pitch Threshold", 0.0, 90.0, 60.0, 1.0);
+    private final NumberSetting range = new NumberSetting("Range", 1.0, 10.0, 5.0, 0.1);
+    private final NumberSetting speed = new NumberSetting("Speed", 1.0, 15.0, 10.0, 0.5);
 
     private final BooleanSetting targetPlayers = new BooleanSetting("Target Players", true);
     private final BooleanSetting targetMobs = new BooleanSetting("Target Mobs", false);
     private final BooleanSetting weaponsOnly = new BooleanSetting("Weapons Only", false);
     private final BooleanSetting throughWalls = new BooleanSetting("Through Walls", false);
-    private final BooleanSetting disableOnTarget = new BooleanSetting("Disable on target", false);
     private final BooleanSetting ignoreBlocks = new BooleanSetting("Ignore Blocks", true);
 
     private Entity currentTarget = null;
     private long lastUpdateTime = 0;
-    private float currentBaseSpeed = 10f;
-    private float nextBaseSpeed = 10f;
-    private long lastSpeedChangeTime = 0;
 
     public AimAssist() {
         super("Aim Assist", "Gives you assistance on your aim", Category.COMBAT);
-        addSettings(
-                maxYawSpeed, minYawSpeed, maxPitchSpeed, minPitchSpeed, fov, range, smoothing, pitchThreshold,
-                targetPlayers, targetMobs, weaponsOnly, throughWalls, disableOnTarget, ignoreBlocks);
+        addSettings(fov, range, speed, targetPlayers, targetMobs, weaponsOnly, throughWalls, ignoreBlocks);
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (isNull())
             return;
-        if (maxPitchSpeed.getValueFloat() <= minPitchSpeed.getValueFloat()) {
-            maxPitchSpeed.setValue(minPitchSpeed.getValue() + 0.1);
-        }
-        if (maxYawSpeed.getValueFloat() <= minYawSpeed.getValueFloat()) {
-            maxYawSpeed.setValue(minYawSpeed.getValue() + 0.1);
-        }
+
         if (weaponsOnly.getValue() && !isHoldingWeapon())
             return;
 
@@ -72,10 +54,6 @@ public class AimAssist extends Module {
             return;
         }
 
-        if (mc.player.getPitch() > pitchThreshold.getValueFloat()) {
-            return;
-        }
-
         if (ignoreBlocks.getValue() && mc.crosshairTarget != null
                 && mc.crosshairTarget.getType() == HitResult.Type.BLOCK) {
             return;
@@ -83,17 +61,13 @@ public class AimAssist extends Module {
 
         currentTarget = findBestTarget();
 
-        if (mc.targetedEntity == currentTarget && disableOnTarget.getValue()) {
-            return;
-        }
-
         if (currentTarget != null) {
             if (!throughWalls.getValue() && !mc.player.canSee(currentTarget))
                 return;
 
             Vec3d chestPos = getChestPosition(currentTarget);
             float[] rotation = calculateRotation(chestPos);
-            applySmoothAiming(rotation[0], rotation[1]);
+            applyEaseOutAiming(rotation[0], rotation[1]);
         }
     }
 
@@ -150,7 +124,7 @@ public class AimAssist extends Module {
         double distance = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
         float yaw = (float) Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90.0f;
         float pitch = (float) -Math.toDegrees(Math.atan2(diff.y, distance));
-        return new float[] { MathHelper.wrapDegrees(yaw), MathHelper.clamp(pitch, -89.0f, 89.0f) };
+        return new float[]{MathHelper.wrapDegrees(yaw), MathHelper.clamp(pitch, -89.0f, 89.0f)};
     }
 
     private double getFOVDistance(float targetYaw, float targetPitch) {
@@ -159,9 +133,8 @@ public class AimAssist extends Module {
         return Math.sqrt(yawDiff * yawDiff + pitchDiff * pitchDiff);
     }
 
-    private void applySmoothAiming(float targetYaw, float targetPitch) {
+    private void applyEaseOutAiming(float targetYaw, float targetPitch) {
         long currentTime = System.currentTimeMillis();
-
         if (lastUpdateTime == 0) {
             lastUpdateTime = currentTime;
             return;
@@ -172,49 +145,23 @@ public class AimAssist extends Module {
 
         if (deltaTime < 0.001f || deltaTime > 0.1f)
             return;
-        deltaTime *= randomFloat(0.9f, 1.1f);
-
-        updateBaseSpeed();
 
         float currentYaw = mc.player.getYaw();
         float currentPitch = mc.player.getPitch();
 
-        float yawDiff = MathHelper.wrapDegrees(targetYaw - currentYaw);
-        float pitchDiff = targetPitch - currentPitch;
+        float easedYaw = easeOutBack(currentYaw, targetYaw, deltaTime * (speed.getValueFloat() / 10f));
+        float easedPitch = easeOutBack(currentPitch, targetPitch, deltaTime * (speed.getValueFloat() / 10f));
 
-        float distance = (float) Math.hypot(yawDiff, pitchDiff);
-        if (distance < 0.3f)
-            return;
-
-        float t = Math.min(distance / 10f, 1f);
-        float eased = easeOutCubic(t);
-
-        float lerpFactor = eased * (smoothing.getValueFloat() / 10f) * deltaTime;
-        float newYaw = MathHelper.lerp(lerpFactor, currentYaw, currentYaw + yawDiff);
-        float newPitch = MathHelper.lerp(lerpFactor, currentPitch, currentPitch + pitchDiff);
-
-        mc.player.setYaw(newYaw);
-        mc.player.setPitch(MathHelper.clamp(newPitch, -89f, 89f));
+        mc.player.setYaw(easedYaw);
+        mc.player.setPitch(MathHelper.clamp(easedPitch, -89f, 89f));
     }
 
-    private float easeOutCubic(float t) {
-        return 1f - (float) Math.pow(1f - t, 3);
-    }
-
-    private void updateBaseSpeed() {
-        long now = System.currentTimeMillis();
-        if (now - lastSpeedChangeTime > 200) {
-            lastSpeedChangeTime = now;
-            float change = randomFloat(-5f, 5f);
-            nextBaseSpeed += change;
-            nextBaseSpeed = MathHelper.clamp(nextBaseSpeed, 8f, 100f);
-        }
-
-        currentBaseSpeed = (currentBaseSpeed * 0.9f) + (nextBaseSpeed * 0.1f);
-    }
-
-    private float randomFloat(float min, float max) {
-        return min + (float) Math.random() * (max - min);
+    private float easeOutBack(float start, float end, float t) {
+        float c1 = 1.70158f;
+        float c3 = c1 + 1f;
+        t = MathHelper.clamp(t, 0, 1);
+        float x = 1 - (float)Math.pow(1 - t, 3);
+        return start + MathHelper.wrapDegrees(end - start) * (1 + c3 * (float)Math.pow(x - 1, 3) + c1 * (float)Math.pow(x - 1, 2));
     }
 
     private boolean isHoldingWeapon() {
