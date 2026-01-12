@@ -56,6 +56,7 @@ public final class AutoMace extends Module {
     private void updateFall() {
         boolean onGround = mc.player.isOnGround();
         boolean falling = mc.player.getVelocity().y < -0.1;
+        boolean rising = mc.player.getVelocity().y > 0.1;
         double currentY = mc.player.getY();
 
         if (onGround) {
@@ -67,6 +68,11 @@ public final class AutoMace extends Module {
                 savedSlot = -1;
             }
             return;
+        }
+
+        if (rising && maceHit) {
+            maceHit = false;
+            fallStartY = currentY;
         }
 
         if (!isFalling) {
@@ -127,6 +133,8 @@ public final class AutoMace extends Module {
     }
 
     private void handleMaceAttack(Entity target) {
+        if (maceHit) return;
+        
         double fallDist = fallStartY == -1 ? 0 : Math.max(0, fallStartY - mc.player.getY());
 
         if (!hasMace()) {
