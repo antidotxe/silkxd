@@ -76,7 +76,7 @@ public final class ModuleManager {
                 new ContainerSlots(), new FullBright(), new Watermark(), new TargetHUD(),
                 new SwingSpeed(),
                 new Notifications(), new ArrowESP(), new OutlineESP(), new ESP2D(), new TargetESP(),
-                new ArrayList(), new Trajectories(), new BlurTest());
+                new ArrayList(), new Trajectories(), new BlurTest(), new AspectRatio());
 
         // Misc
         add(
