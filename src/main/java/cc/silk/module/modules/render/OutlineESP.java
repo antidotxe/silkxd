@@ -1,4 +1,4 @@
-/Users/hikoi/Downloads/Minced (1.21.4)/Users/hikoi/Downloads/Minced (1.21.4)package cc.silk.module.modules.render;
+package cc.silk.module.modules.render;
 
 import cc.silk.event.impl.player.TickEvent;
 import cc.silk.module.Category;
