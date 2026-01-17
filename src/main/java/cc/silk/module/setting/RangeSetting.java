@@ -28,11 +28,17 @@ public class RangeSetting extends Setting {
     }
 
     public void setMinValue(double minValue) {
-        this.minValue = Math.max(min, Math.min(maxValue, minValue));
+        this.minValue = Math.max(min, Math.min(max, minValue));
+        if (this.minValue > this.maxValue) {        // i hate niggers :3
+            this.maxValue = this.minValue;
+        }
     }
 
     public void setMaxValue(double maxValue) {
-        this.maxValue = Math.max(minValue, Math.min(max, maxValue));
+        this.maxValue = Math.max(min, Math.min(max, maxValue));
+        if (this.maxValue < this.minValue) {
+            this.minValue = this.maxValue;
+        }
     }
 
     public void setRange(double minValue, double maxValue) {

@@ -1,17 +1,21 @@
 package cc.silk.module.modules.combat;
+
 import cc.silk.event.impl.input.HandleInputEvent;
+import cc.silk.event.impl.world.WorldChangeEvent;
 import cc.silk.mixin.MinecraftClientAccessor;
 import cc.silk.module.Category;
 import cc.silk.module.Module;
 import cc.silk.module.modules.misc.Teams;
 import cc.silk.module.setting.BooleanSetting;
 import cc.silk.module.setting.ModeSetting;
-import cc.silk.module.setting.NumberSetting;
 import cc.silk.module.setting.RangeSetting;
+import cc.silk.utils.friend.FriendManager;
 import cc.silk.utils.math.MathUtils;
 import cc.silk.utils.math.TimerUtil;
 import cc.silk.utils.mc.CombatUtil;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.Tameable;
 import net.minecraft.entity.decoration.EndCrystalEntity;
@@ -19,111 +23,152 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.PassiveEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.WindChargeEntity;
-import net.minecraft.item.*;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.SwordItem;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.EntityHitResult;
 import org.lwjgl.glfw.GLFW;
 
+// Koi touch this and im going to fucking rape you
+
+// sorry graph :3
+
 public final class TriggerBot extends Module {
-    public static final RangeSetting swordThreshold = new RangeSetting("Sword Threshold", 0.1, 1, 0.9, 0.95, 0.01);
-    public static final RangeSetting axeThreshold = new RangeSetting("Axe Threshold", 0.1, 1, 0.9, 0.95, 0.01);
+    public static final RangeSetting swordThreshold = new RangeSetting("Sword Threshold", 0.1, 1, 0.90, 0.95, 0.01);
+    public static final RangeSetting axeThreshold = new RangeSetting("Axe Threshold", 0.1, 1, 0.90, 0.95, 0.01);
     public static final RangeSetting axePostDelay = new RangeSetting("Axe Post Delay", 1, 500, 120, 120, 0.5);
     public static final RangeSetting reactionTime = new RangeSetting("Reaction Time", 1, 350, 20, 95, 0.5);
-
+    public static final RangeSetting missChance = new RangeSetting("Miss Chance", 0, 100, 0, 0, 1);
     public static final ModeSetting cooldownMode = new ModeSetting("Cooldown Mode", "Smart", "Smart", "Strict", "None");
     public static final ModeSetting critMode = new ModeSetting("Criticals", "Strict", "None", "Strict");
-
-    public static final NumberSetting missChance = new NumberSetting("Miss Chance", 0, 100, 0, 1);
-
     public static final BooleanSetting ignorePassiveMobs = new BooleanSetting("No Passive", true);
     public static final BooleanSetting ignoreInvisible = new BooleanSetting("No Invisible", true);
-    public static final BooleanSetting ignoreTamed = new BooleanSetting("No Tamed", true);
     public static final BooleanSetting ignoreCrystals = new BooleanSetting("No Crystals", true);
     public static final BooleanSetting respectShields = new BooleanSetting("Ignore Shields", false);
-    public static final BooleanSetting useOnlySwordOrAxe = new BooleanSetting("Only Melee", false);
+    public static final BooleanSetting useOnlySwordOrAxe = new BooleanSetting("Only Sword or Axe", true);
     public static final BooleanSetting onlyWhenMouseDown = new BooleanSetting("Only Mouse Hold", false);
+    public static final BooleanSetting disableOnWorldChange = new BooleanSetting("Disable on Load", false);
     public static final BooleanSetting samePlayer = new BooleanSetting("Same Player", false);
 
-    private final TimerUtil attackTimer = new TimerUtil();
-    private final TimerUtil reactionTimer = new TimerUtil();
+    private final TimerUtil timer = new TimerUtil();
     private final TimerUtil samePlayerTimer = new TimerUtil();
+    private final TimerUtil timerReactionTime = new TimerUtil();
+
+    public boolean waitingForDelay = false;
 
     private boolean waitingForReaction = false;
-    private boolean waitingForPostDelay = false;
-    private float randomizedThreshold = 0f;
-    private float randomizedPostDelay = 0f;
-    private long currentReactionDelay = 0L;
+    private long currentReactionDelay = 0;
+    private float randomizedPostDelay = 0;
+    private float randomizedThreshold = 0;
     private Entity target;
     private String lastTargetUUID = null;
 
     public TriggerBot() {
-        super("Trigger Bot", "Automatically attacks targets when aimed", -1, Category.COMBAT);
+        super("Trigger Bot", "Makes you automatically attack once aimed at a target", -1, Category.COMBAT);
         addSettings(
-                swordThreshold, axeThreshold, axePostDelay, reactionTime,
-                cooldownMode, critMode, missChance, ignorePassiveMobs, ignoreInvisible, ignoreTamed, ignoreCrystals,
-                respectShields, useOnlySwordOrAxe, onlyWhenMouseDown, samePlayer
-        );
+                swordThreshold, axeThreshold,
+                axePostDelay, reactionTime, missChance,
+                cooldownMode, critMode, ignorePassiveMobs, ignoreCrystals, respectShields,
+                ignoreInvisible, onlyWhenMouseDown, useOnlySwordOrAxe,
+                disableOnWorldChange, samePlayer);
     }
 
     @EventHandler
-    public void onHandleInput(HandleInputEvent event) {
-        if (isNull() || mc.player == null || mc.currentScreen != null || mc.player.isUsingItem()) return;
+    private void onWorldChangeEvent(WorldChangeEvent event) {
+        if (disableOnWorldChange.getValue() && this.isEnabled()) {
+            this.toggle();
+        }
+    }
+
+    @EventHandler
+    private void handleInputEvent(HandleInputEvent event) {
+        if (isNull())
+            return;
+        assert mc.player != null;
+        if (mc.player.isUsingItem())
+            return;
+        if (mc.currentScreen != null)
+            return;
 
         target = mc.targetedEntity;
-        if (target == null || !hasTarget(target) || !isHoldingWeapon()) return;
+        if (target == null)
+            return;
+        if (!isHoldingSwordOrAxe())
+            return;
 
         if (onlyWhenMouseDown.getValue() &&
                 GLFW.glfwGetMouseButton(mc.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
             return;
         }
 
-        if (respectShields.getValue() && target instanceof PlayerEntity playerTarget) {
-            Item mainHand = mc.player.getMainHandStack().getItem();
-            if (CombatUtil.isShieldFacingAway(playerTarget) && mc.player.getMainHandStack().getItem() instanceof SwordItem) return;
+        if (!hasTarget(target))
+            return;
+
+        if (respectShields.getValue()) {
+            Item item = mc.player.getMainHandStack().getItem();
+            if (target instanceof PlayerEntity playerTarget &&
+                    CombatUtil.isShieldFacingAway(playerTarget) &&
+                    item instanceof SwordItem) {
+                return;
+            }
         }
 
-        if (target != null && !target.getUuidAsString().equals(lastTargetUUID)) {
+        if (target != null && (!target.getUuidAsString().equals(lastTargetUUID))) {
             lastTargetUUID = target.getUuidAsString();
         }
 
         if (!waitingForReaction) {
             waitingForReaction = true;
-            reactionTimer.reset();
-            currentReactionDelay = calculateReactionDelay();
-        }
+            timerReactionTime.reset();
 
-        if (waitingForReaction && reactionTimer.hasElapsedTime(currentReactionDelay, true)) {
-            attemptAttack();
-            waitingForReaction = false;
-        }
-    }
-
-    private long calculateReactionDelay() {
-        switch (cooldownMode.getMode()) {
-            case "Smart" -> {
-                double distance = mc.player.distanceTo(target);
-                double multiplier = (distance < 1.5) ? 0.66 : 1.0;
-                return (long) (MathUtils.randomDoubleBetween(reactionTime.getMinValue(), reactionTime.getMaxValue()) * multiplier);
+            long delay;
+            switch (cooldownMode.getMode()) {
+                case "Smart" -> {
+                    double distance = mc.player.distanceTo(target);
+                    double maxDistance = 3.0;
+                    double multiplier = distance < maxDistance / 2 ? 0.66 : 1.0;
+                    delay = (long) MathUtils.randomDoubleBetween(reactionTime.getMinValue(),
+                            reactionTime.getMaxValue());
+                    delay *= (long) multiplier;
+                }
+                case "None" -> delay = 0;
+                default -> delay = (long) MathUtils.randomDoubleBetween(reactionTime.getMinValue(),
+                        reactionTime.getMaxValue());
             }
-            case "None" -> { return 0; }
-            default -> { return (long) MathUtils.randomDoubleBetween(reactionTime.getMinValue(), reactionTime.getMaxValue()); }
-        }
-    }
 
-    private void attemptAttack() {
-        if (critMode.getMode().equals("Strict") && canCrit()) {
-            if (mc.player.getAttackCooldownProgress(0f) >= swordThreshold.getMinValue() && samePlayerCheck(target)) {
-                attack();
-            }
-        } else {
-            if (hasElapsedDelay() && samePlayerCheck(target)) {
-                attack();
+            currentReactionDelay = delay;
+        }
+
+        if (waitingForReaction && timerReactionTime.hasElapsedTime(currentReactionDelay, true)) {
+            if (critMode.getMode().equals("Strict")) {
+                if (!mc.player.isOnGround() && !mc.player.isClimbing()) {
+                    if (canCrit() && mc.player.getAttackCooldownProgress(0.0f) >= swordThreshold.getMinValue()) {
+                        if (hasTarget(target) && samePlayerCheck(target)) {
+                            attack();
+                            waitingForReaction = false;
+                        }
+                    }
+                } else {
+                    if (hasElapsedDelay() && hasTarget(target) && samePlayerCheck(target)) {
+                        attack();
+                        waitingForReaction = false;
+                    }
+                }
+            } else {
+                if (hasElapsedDelay() && hasTarget(target) && samePlayerCheck(target)) {
+                    attack();
+                    waitingForReaction = false;
+                }
             }
         }
     }
 
     private boolean samePlayerCheck(Entity entity) {
-        if (!samePlayer.getValue()) return true;
-        if (entity == null) return false;
+        if (!samePlayer.getValue())
+            return true;
+        if (entity == null)
+            return false;
 
         if (lastTargetUUID == null || samePlayerTimer.hasElapsedTime(3000, false)) {
             lastTargetUUID = entity.getUuidAsString();
@@ -134,6 +179,9 @@ public final class TriggerBot extends Module {
     }
 
     private boolean canCrit() {
+        if (mc.player == null)
+            return false;
+
         return !mc.player.isOnGround()
                 && !mc.player.isClimbing()
                 && !mc.player.isInLava()
@@ -142,92 +190,135 @@ public final class TriggerBot extends Module {
                 && mc.player.getVehicle() == null;
     }
 
-    private boolean hasElapsedDelay() {
-        Item mainHand = mc.player.getMainHandStack().getItem();
-        float cooldown = mc.player.getAttackCooldownProgress(0f);
+    private boolean setPreferCrits() {
+        if (mc.player == null || mc.world == null)
+            return false;
 
-        if (mainHand instanceof AxeItem) {
-            if (!waitingForPostDelay) {
-                randomizedThreshold = (float) MathUtils.randomDoubleBetween(axeThreshold.getMinValue(), axeThreshold.getMaxValue());
-                randomizedPostDelay = (float) MathUtils.randomDoubleBetween(axePostDelay.getMinValue(), axePostDelay.getMaxValue());
-                waitingForPostDelay = true;
-            }
+        String mode = critMode.getMode();
+        if (mode.equals("None"))
+            return false;
 
-            if (cooldown >= randomizedThreshold) {
-                if (attackTimer.hasElapsedTime((long) randomizedPostDelay, true)) {
-                    waitingForPostDelay = false;
-                    return true;
-                }
-            } else {
-                attackTimer.reset();
-            }
+        if (mc.player.hasStatusEffect(StatusEffects.LEVITATION)
+                || mc.player.hasStatusEffect(StatusEffects.SLOW_FALLING)
+                || mc.player.hasStatusEffect(StatusEffects.BLINDNESS)) {
             return false;
         }
 
-        // what the fuh
-        float threshold = (mainHand instanceof SwordItem || mainHand instanceof TridentItem || mainHand == Items.AIR)
-                ? (float) MathUtils.randomDoubleBetween(swordThreshold.getMinValue(), swordThreshold.getMaxValue())
-                : 0f;
+        if (!(mc.crosshairTarget instanceof EntityHitResult hitResult))
+            return false;
+        Entity targetEntity = hitResult.getEntity();
+        if (targetEntity != target || !hasTarget(targetEntity))
+            return false;
 
-        return cooldown >= threshold;
+        if (mc.player.isTouchingWater()
+                || mc.player.isInLava()
+                || mc.player.isSubmergedInWater()
+                || mc.player.isClimbing()) {
+            return false;
+        }
+
+        BlockState state = mc.world.getBlockState(mc.player.getBlockPos());
+        if (state.isOf(Blocks.COBWEB)
+                || state.isOf(Blocks.SWEET_BERRY_BUSH)
+                || state.isOf(Blocks.VINE)
+                || state.isOf(Blocks.SCAFFOLDING)
+                || state.isOf(Blocks.SLIME_BLOCK)
+                || state.isOf(Blocks.HONEY_BLOCK)
+                || state.isOf(Blocks.POWDER_SNOW)) {
+            return false;
+        }
+
+        boolean cooldownReady = mc.player.getAttackCooldownProgress(0.0f) >= swordThreshold.getMinValue();
+        return mode.equals("Strict") && cooldownReady && canCrit();
     }
 
+    private boolean hasElapsedDelay() {
+        if (setPreferCrits())
+            return false;
 
-    private boolean isHoldingWeapon() {
-        if (!useOnlySwordOrAxe.getValue()) return true;
+        assert mc.player != null;
+        Item heldItem = mc.player.getMainHandStack().getItem();
+        float cooldown = mc.player.getAttackCooldownProgress(0.0f);
 
-        var item = mc.player.getMainHandStack().getItem();
-
-        return item instanceof SwordItem
-                || item instanceof AxeItem
-                || item instanceof TridentItem
-                || item == Items.AIR;
+        if (heldItem instanceof AxeItem) {
+            if (!waitingForDelay) {
+                randomizedThreshold = (float) MathUtils.randomDoubleBetween(axeThreshold.getMinValue(),
+                        axeThreshold.getMaxValue());
+                randomizedPostDelay = (float) MathUtils.randomDoubleBetween(axePostDelay.getMinValue(),
+                        axePostDelay.getMaxValue());
+                waitingForDelay = true;
+            }
+            if (cooldown >= randomizedThreshold) {
+                if (timer.hasElapsedTime((long) randomizedPostDelay, true)) {
+                    waitingForDelay = false;
+                    return true;
+                }
+            } else {
+                timer.reset();
+            }
+            return false;
+        } else {
+            float swordDelay = (float) MathUtils.randomDoubleBetween(swordThreshold.getMinValue(),
+                    swordThreshold.getMaxValue());
+            return cooldown >= swordDelay;
+        }
     }
 
-
+    private boolean isHoldingSwordOrAxe() {
+        if (!useOnlySwordOrAxe.getValue())
+            return true;
+        assert mc.player != null;
+        Item item = mc.player.getMainHandStack().getItem();
+        return item instanceof AxeItem || item instanceof SwordItem;
+    }
 
     public void attack() {
-        if (missChance.getValue() > 0 && Math.random() * 100 < missChance.getValue()) {
+        if (missChance.getMinValue() > 0 && Math.random() * 100 < missChance.getMinValue()) {
             mc.player.swingHand(Hand.MAIN_HAND);
             mc.player.resetLastAttackedTicks();
         } else {
             ((MinecraftClientAccessor) mc).invokeDoAttack();
         }
-        
         if (samePlayer.getValue() && target != null) {
             lastTargetUUID = target.getUuidAsString();
             samePlayerTimer.reset();
         }
-        waitingForPostDelay = false;
+        waitingForDelay = false;
     }
 
-    private boolean hasTarget(Entity en) {
-        if (en == mc.player || en == mc.cameraEntity || !en.isAlive()) return false;
-        if (Teams.isTeammate(en)) return false;
+    public boolean hasTarget(Entity en) {
+        if (en == mc.player || en == mc.cameraEntity || !en.isAlive())
+            return false;
+        if (en instanceof PlayerEntity player && FriendManager.isFriend(player.getUuid()))
+            return false;
+        if (Teams.isTeammate(en))
+            return false;
+        if (en instanceof WindChargeEntity)
+            return false;
+
         return switch (en) {
-            case WindChargeEntity windChargeEntity -> false;
-            case EndCrystalEntity endCrystalEntity when ignoreCrystals.getValue() -> false;
-            case Tameable tameable when ignoreTamed.getValue() -> false;
-            case PassiveEntity passiveEntity when ignorePassiveMobs.getValue() -> false;
+            case EndCrystalEntity ignored when ignoreCrystals.getValue() -> false;
+            case Tameable ignored -> false;
+            case PassiveEntity ignored when ignorePassiveMobs.getValue() -> false;
             default -> !ignoreInvisible.getValue() || !en.isInvisible();
         };
-
     }
 
     @Override
     public void onEnable() {
-        resetTimers();
+        timer.reset();
+        timerReactionTime.reset();
+        waitingForReaction = false;
+        waitingForDelay = false;
+        super.onEnable();
     }
 
     @Override
     public void onDisable() {
-        resetTimers();
-    }
-
-    private void resetTimers() {
-        attackTimer.reset();
-        reactionTimer.reset();
+        timer.reset();
+        timerReactionTime.reset();
         waitingForReaction = false;
-        waitingForPostDelay = false;
+        waitingForDelay = false;
+        super.onDisable();
     }
 }

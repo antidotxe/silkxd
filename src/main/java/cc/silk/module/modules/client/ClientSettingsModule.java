@@ -12,6 +12,7 @@ public class ClientSettingsModule extends Module {
     public static final ModeSetting fontStyle = new ModeSetting("Font", "Inter.ttf", "Inter.ttf", "jetbrainsmono.ttf",
             "poppins-medium.ttf", "Monaco.ttf");
     public static final BooleanSetting scrollableCategories = new BooleanSetting("Scrollable Categories", false);
+    public static final NumberSetting guiScale = new NumberSetting("GUI Scale", 0, 3, 1, 1);
     public static final NumberSetting guiTransparency = new NumberSetting("GUI Transparency", 0, 100, 0, 1);
     public static final BooleanSetting guiBlur = new BooleanSetting("GUI Blur", false);
     public static final BooleanSetting panelBlur = new BooleanSetting("Panel Blur", false);
@@ -31,14 +32,15 @@ public class ClientSettingsModule extends Module {
     
     public static final BooleanSetting autoFocusSearch = new BooleanSetting("Auto Focus Search", true);
     public static final BooleanSetting snowEffect = new BooleanSetting("Snow Effect", false);
+    public static final BooleanSetting autoSaveSettings = new BooleanSetting("Auto Save Settings", true);
 
 
     public ClientSettingsModule() {
         super("ClientSettings", "Customize GUI appearance", 0, Category.CLIENT);
-        this.addSettings(accentColor, fontStyle, scrollableCategories, guiTransparency, guiBlur, panelBlur, panelBlurRadius, moduleDescriptions,
+        this.addSettings(accentColor, fontStyle, scrollableCategories, guiScale, guiTransparency, guiBlur, panelBlur, panelBlurRadius, moduleDescriptions,
                 toggleWidth, toggleHeight, sliderHeight, sliderHandleSize,
                 guiGlow, glowColor, glowIntensity, glowThickness, bloomRadius,
-                autoFocusSearch, snowEffect);
+                autoFocusSearch, snowEffect, autoSaveSettings);
         this.setEnabled(true);
     }
 
@@ -116,5 +118,13 @@ public class ClientSettingsModule extends Module {
     
     public static boolean isSnowEffectEnabled() {
         return snowEffect.getValue();
+    }
+    
+    public static int getGuiScale() {
+        return (int) guiScale.getValue();
+    }
+    
+    public static boolean isAutoSaveEnabled() {
+        return autoSaveSettings.getValue();
     }
 }

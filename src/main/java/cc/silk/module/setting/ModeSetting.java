@@ -1,5 +1,6 @@
 package cc.silk.module.setting;
 
+import cc.silk.SilkClient;
 import lombok.Getter;
 
 import java.util.Arrays;
@@ -32,14 +33,20 @@ public class ModeSetting extends Setting {
         int newIndex = modes.indexOf(mode);
         if (newIndex != -1) {
             index = newIndex;
+            triggerAutoSave();
         }
     }
 
     public void cycle() {
         index = (index + 1) % modes.size();
+        triggerAutoSave();
     }
 
     public boolean isMode(String mode) {
         return mode.equals(getMode());
+    }
+    
+    private void triggerAutoSave() {
+        cc.silk.utils.AutoSaveManager.getInstance().scheduleSave();
     }
 }

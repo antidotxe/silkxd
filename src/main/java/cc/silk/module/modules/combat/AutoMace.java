@@ -30,6 +30,7 @@ public final class AutoMace extends Module {
     private final BooleanSetting stunSlam = new BooleanSetting("Stun Slam", false);
     private final BooleanSetting onlyAxe = new BooleanSetting("Only Axe", false);
     private final BooleanSetting autoSwitch = new BooleanSetting("Auto Switch Mace", true);
+    private final BooleanSetting stayOnMace = new BooleanSetting("Stay On Mace", false);
 
     private final TimerUtil attackTimer = new TimerUtil();
     private int savedSlot = -1;
@@ -42,7 +43,7 @@ public final class AutoMace extends Module {
     public AutoMace() {
         super("Auto Mace", "Automatically attacks with mace", -1, Category.COMBAT);
         this.addSettings(minFallDistance, attackDelay, densityThreshold, targetPlayers, targetMobs, stunSlam,
-                onlyAxe, autoSwitch);
+                onlyAxe, autoSwitch, stayOnMace);
     }
 
     @EventHandler
@@ -64,7 +65,7 @@ public final class AutoMace extends Module {
             if (isFalling) {
                 resetFall();
             }
-            if (savedSlot != -1) {
+            if (savedSlot != -1 && !stayOnMace.getValue()) {
                 switchToSlot(savedSlot);
                 savedSlot = -1;
             }

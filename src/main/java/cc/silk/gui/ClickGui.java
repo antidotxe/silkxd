@@ -113,7 +113,14 @@ public final class ClickGui extends Screen {
         float centerY = screenHeight / 2f;
 
         matrices.translate(centerX, centerY, 0);
-        matrices.scale(animationManager.getScaleAnimation(), animationManager.getScaleAnimation(), 1f);
+        
+        float guiScale = getGuiScaleMultiplier();
+        float finalScale = animationManager.getScaleAnimation() * guiScale;
+        
+        int transformedMouseX = (int) ((mouseX - centerX) / finalScale + centerX);
+        int transformedMouseY = (int) ((mouseY - centerY) / finalScale + centerY);
+        
+        matrices.scale(finalScale, finalScale, 1f);
         matrices.translate(-centerX, -centerY, 0);
 
         int containerX = (screenWidth - CONTAINER_WIDTH) / 2;
@@ -125,16 +132,16 @@ public final class ClickGui extends Screen {
     Color containerColor = applyAlpha(theme.containerBg(), alpha);
     context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, containerColor.getRGB());
 
-    renderSidebar(context, containerX, containerY, containerHeight, mouseX, mouseY);
+    renderSidebar(context, containerX, containerY, containerHeight, transformedMouseX, transformedMouseY);
 
-        renderContent(context, containerX + SIDEBAR_WIDTH, containerY, CONTAINER_WIDTH - SIDEBAR_WIDTH, containerHeight, mouseX, mouseY);
+        renderContent(context, containerX + SIDEBAR_WIDTH, containerY, CONTAINER_WIDTH - SIDEBAR_WIDTH, containerHeight, transformedMouseX, transformedMouseY);
 
         if (eventHandler.isAnyColorPickerExpanded()) {
             int colorPickerPanelX = containerX + containerWidth + 10;
-            colorPickerManager.renderColorPickerPanel(context, colorPickerPanelX, containerY, COLOR_PICKER_PANEL_WIDTH, containerHeight, mouseX, mouseY);
+            colorPickerManager.renderColorPickerPanel(context, colorPickerPanelX, containerY, COLOR_PICKER_PANEL_WIDTH, containerHeight, transformedMouseX, transformedMouseY);
         }
 
-        renderHeader(context, containerX, containerY, containerWidth, mouseX, mouseY);
+        renderHeader(context, containerX, containerY, containerWidth, transformedMouseX, transformedMouseY);
 
         matrices.pop();
 
@@ -287,7 +294,6 @@ public final class ClickGui extends Screen {
 
             Color bgColor = isHovered ? applyAlpha(theme.panelAltBg(), 220) : applyAlpha(theme.panelBg(), 140);
         context.fill(x + PADDING, moduleY, x + width - PADDING, moduleY + MODULE_HEIGHT, bgColor.getRGB());
-        // draw a subtle border so modules keep their box outline under themes
         context.drawBorder(x + PADDING, moduleY, width - PADDING * 2, MODULE_HEIGHT, applyAlpha(theme.muted(), 120).getRGB());
             int indicatorAlpha = isEnabled ? (int) (newAnimation * 255) : 0;
             if (indicatorAlpha > 0) {
@@ -384,7 +390,6 @@ public final class ClickGui extends Screen {
 
     private void renderConfigButton(DrawContext context, int x, int y, int width, int height, String text, Color baseColor, int mouseX, int mouseY) {
         boolean isHovered = mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
-        // clamp RGB so hovering doesn't produce values >255 which throws IllegalArgumentException
         Color buttonColor;
         if (isHovered) {
             int r = Math.max(0, Math.min(255, baseColor.getRed() + 20));
@@ -419,11 +424,18 @@ public final class ClickGui extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button < 0 || button > 8) return false;
 
-        if (eventHandler.getSelectedCategory() == Category.CONFIG && handleConfigClick(mouseX, mouseY, button)) {
+        float guiScale = getGuiScaleMultiplier();
+        float finalScale = animationManager.getScaleAnimation() * guiScale;
+        float centerX = width / 2f;
+        float centerY = height / 2f;
+        double transformedMouseX = (mouseX - centerX) / finalScale + centerX;
+        double transformedMouseY = (mouseY - centerY) / finalScale + centerY;
+
+        if (eventHandler.getSelectedCategory() == Category.CONFIG && handleConfigClick(transformedMouseX, transformedMouseY, button)) {
             return true;
         }
 
-        if (handleColorPickerClicks(mouseX, mouseY, button)) {
+        if (handleColorPickerClicks(transformedMouseX, transformedMouseY, button)) {
             return true;
         }
 
@@ -435,31 +447,52 @@ public final class ClickGui extends Screen {
         }
         List<Module> modules = filterModulesBySearch(allModules);
 
-        return eventHandler.handleMouseClick(mouseX, mouseY, button, width, height, modules) ||
+        return eventHandler.handleMouseClick(transformedMouseX, transformedMouseY, button, width, height, modules) ||
                 super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (colorPickerManager.handleColorPickerDrag(mouseX, mouseY, button, deltaX, deltaY)) {
+        float guiScale = getGuiScaleMultiplier();
+        float finalScale = animationManager.getScaleAnimation() * guiScale;
+        float centerX = width / 2f;
+        float centerY = height / 2f;
+        double transformedMouseX = (mouseX - centerX) / finalScale + centerX;
+        double transformedMouseY = (mouseY - centerY) / finalScale + centerY;
+
+        if (colorPickerManager.handleColorPickerDrag(transformedMouseX, transformedMouseY, button, deltaX, deltaY)) {
             return true;
         }
 
-        return eventHandler.handleMouseDrag(mouseX, mouseY, button, deltaX, deltaY, width, height);
+        return eventHandler.handleMouseDrag(transformedMouseX, transformedMouseY, button, deltaX, deltaY, width, height);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (colorPickerManager.handleColorPickerRelease(mouseX, mouseY, button)) {
+        float guiScale = getGuiScaleMultiplier();
+        float finalScale = animationManager.getScaleAnimation() * guiScale;
+        float centerX = width / 2f;
+        float centerY = height / 2f;
+        double transformedMouseX = (mouseX - centerX) / finalScale + centerX;
+        double transformedMouseY = (mouseY - centerY) / finalScale + centerY;
+
+        if (colorPickerManager.handleColorPickerRelease(transformedMouseX, transformedMouseY, button)) {
             return true;
         }
 
-        return eventHandler.handleMouseRelease(mouseX, mouseY, button);
+        return eventHandler.handleMouseRelease(transformedMouseX, transformedMouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        return eventHandler.handleMouseScroll(mouseX, mouseY, horizontalAmount, verticalAmount, height) ||
+        float guiScale = getGuiScaleMultiplier();
+        float finalScale = animationManager.getScaleAnimation() * guiScale;
+        float centerX = width / 2f;
+        float centerY = height / 2f;
+        double transformedMouseX = (mouseX - centerX) / finalScale + centerX;
+        double transformedMouseY = (mouseY - centerY) / finalScale + centerY;
+
+        return eventHandler.handleMouseScroll(transformedMouseX, transformedMouseY, horizontalAmount, verticalAmount, height) ||
                 super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
@@ -600,6 +633,17 @@ public final class ClickGui extends Screen {
                 selectedConfig = "";
                 configName = "";
             }
+        }
+    }
+
+    private float getGuiScaleMultiplier() {
+        int scaleValue = cc.silk.module.modules.client.ClientSettingsModule.getGuiScale();
+        switch (scaleValue) {
+            case 0: return 0.75f;  
+            case 1: return 1.0f;   
+            case 2: return 1.25f;  
+            case 3: return 1.5f;   
+            default: return 1.0f;
         }
     }
 }

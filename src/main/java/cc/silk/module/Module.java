@@ -100,5 +100,7 @@ public abstract class Module implements IMinecraft {
             onDisable();
             NotificationManager.getInstance().addModuleNotification(this, false);
         }
+        
+        cc.silk.utils.AutoSaveManager.getInstance().scheduleSave();
     }
 }

@@ -1,5 +1,6 @@
 package cc.silk.module.setting;
 
+import cc.silk.SilkClient;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -27,5 +28,15 @@ public final class KeybindSetting extends Setting {
 
     public void toggleHoldMode() {
         this.holdMode = !holdMode;
+        triggerAutoSave();
+    }
+    
+    public void setKeyCode(int keyCode) {
+        this.keyCode = keyCode;
+        triggerAutoSave();
+    }
+    
+    private void triggerAutoSave() {
+        cc.silk.utils.AutoSaveManager.getInstance().scheduleSave();
     }
 }

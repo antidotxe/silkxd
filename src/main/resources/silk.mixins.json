@@ -18,7 +18,9 @@
     "MouseHandlerAccessor",
     "MouseMixin",
     "PlayerEntityMixin",
+    "ProjectileUtilMixin",
     "ScreenMixin",
+    "WindowMixin",
     "WorldRendererMixin"
   ],
   "injectors": {

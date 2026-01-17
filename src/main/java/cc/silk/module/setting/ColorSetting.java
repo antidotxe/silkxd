@@ -1,5 +1,6 @@
 package cc.silk.module.setting;
 
+import cc.silk.SilkClient;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -31,14 +32,22 @@ public class ColorSetting extends Setting {
 
     public void setValue(int rgb) {
         this.value = new Color(rgb, hasAlpha);
+        triggerAutoSave();
     }
 
     public void setValue(int r, int g, int b) {
         this.value = new Color(r, g, b);
+        triggerAutoSave();
     }
 
     public void setValue(int r, int g, int b, int a) {
         this.value = new Color(r, g, b, a);
+        triggerAutoSave();
+    }
+    
+    public void setValue(Color value) {
+        this.value = value;
+        triggerAutoSave();
     }
 
     public int getRGB() {
@@ -72,5 +81,10 @@ public class ColorSetting extends Setting {
         } else {
             this.value = new Color(rgb);
         }
+        triggerAutoSave();
+    }
+    
+    private void triggerAutoSave() {
+        cc.silk.utils.AutoSaveManager.getInstance().scheduleSave();
     }
 }

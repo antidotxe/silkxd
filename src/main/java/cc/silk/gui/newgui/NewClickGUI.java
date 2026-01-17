@@ -108,6 +108,12 @@ public class NewClickGUI extends Screen {
         searchExpandProgress += (targetExpand - searchExpandProgress) * deltaTime * 8f;
         searchExpandProgress = Math.max(0f, Math.min(1f, searchExpandProgress));
 
+        float guiScale = getGuiScaleMultiplier();
+        int centerX = width / 2;
+        int centerY = height / 2;
+        int transformedMouseX = (int) ((mouseX - centerX) / (scale * guiScale) + centerX);
+        int transformedMouseY = (int) ((mouseY - centerY) / (scale * guiScale) + centerY);
+
         for (CategoryPanel panel : panels) {
             panel.update(deltaTime);
             panel.setSearchQuery(searchQuery);
@@ -116,9 +122,6 @@ public class NewClickGUI extends Screen {
         if (configPanel != null) {
             configPanel.update(deltaTime);
         }
-
-        int centerX = width / 2;
-        int centerY = height / 2;
 
         CategoryPanel draggedPanel = null;
         for (CategoryPanel panel : panels) {
@@ -156,7 +159,8 @@ public class NewClickGUI extends Screen {
 
         NanoVGRenderer.save();
         NanoVGRenderer.translate(centerX, centerY);
-        NanoVGRenderer.scale(scale, scale);
+        
+        NanoVGRenderer.scale(scale * guiScale, scale * guiScale);
         NanoVGRenderer.translate(-centerX, -centerY);
 
         renderSearchBar(alpha);
@@ -164,27 +168,27 @@ public class NewClickGUI extends Screen {
 
         for (CategoryPanel panel : panels) {
             if (panel != draggedPanel) {
-                panel.render(mouseX, mouseY, alpha, scale, centerX, centerY);
+                panel.render(transformedMouseX, transformedMouseY, alpha, scale, centerX, centerY);
             }
         }
 
         if (configPanel != null && !configDragging) {
-            configPanel.render(mouseX, mouseY, alpha, scale, centerX, centerY);
+            configPanel.render(transformedMouseX, transformedMouseY, alpha, scale, centerX, centerY);
         }
 
         if (draggedPanel != null) {
-            draggedPanel.render(mouseX, mouseY, alpha, scale, centerX, centerY);
+            draggedPanel.render(transformedMouseX, transformedMouseY, alpha, scale, centerX, centerY);
         }
 
         if (configPanel != null && configDragging) {
-            configPanel.render(mouseX, mouseY, alpha, scale, centerX, centerY);
+            configPanel.render(transformedMouseX, transformedMouseY, alpha, scale, centerX, centerY);
         }
 
         for (CategoryPanel panel : panels) {
-            panel.renderSettingsPanel(mouseX, mouseY, alpha, width, height);
+            panel.renderSettingsPanel(transformedMouseX, transformedMouseY, alpha, width, height);
         }
 
-        renderTooltips(mouseX, mouseY, alpha);
+        renderTooltips(transformedMouseX, transformedMouseY, alpha);
 
         NanoVGRenderer.restore();
 
@@ -344,8 +348,15 @@ public class NewClickGUI extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && mouseX >= friendsButtonX && mouseX <= friendsButtonX + FRIENDS_BUTTON_SIZE &&
-                mouseY >= friendsButtonY && mouseY <= friendsButtonY + FRIENDS_BUTTON_SIZE) {
+        float guiScale = getGuiScaleMultiplier();
+        float scale = easeOutCubic(animationProgress);
+        int centerX = width / 2;
+        int centerY = height / 2;
+        double transformedMouseX = (mouseX - centerX) / (scale * guiScale) + centerX;
+        double transformedMouseY = (mouseY - centerY) / (scale * guiScale) + centerY;
+
+        if (button == 0 && transformedMouseX >= friendsButtonX && transformedMouseX <= friendsButtonX + FRIENDS_BUTTON_SIZE &&
+                transformedMouseY >= friendsButtonY && transformedMouseY <= friendsButtonY + FRIENDS_BUTTON_SIZE) {
             if (client != null) {
                 client.setScreen(new FriendsScreen());
             }
@@ -354,20 +365,20 @@ public class NewClickGUI extends Screen {
 
         for (CategoryPanel panel : panels) {
             if (panel.hasActiveSettingsPanel()) {
-                if (panel.getSettingsPanel().mouseClicked(mouseX, mouseY, button)) {
+                if (panel.getSettingsPanel().mouseClicked(transformedMouseX, transformedMouseY, button)) {
                     searchFocused = false;
                     return true;
                 }
             }
         }
 
-        if (configPanel != null && configPanel.mouseClicked(mouseX, mouseY, button)) {
+        if (configPanel != null && configPanel.mouseClicked(transformedMouseX, transformedMouseY, button)) {
             searchFocused = false;
             return true;
         }
 
         for (CategoryPanel panel : panels) {
-            if (panel.mouseClicked(mouseX, mouseY, button)) {
+            if (panel.mouseClicked(transformedMouseX, transformedMouseY, button)) {
                 searchFocused = false;
                 return true;
             }
@@ -376,8 +387,8 @@ public class NewClickGUI extends Screen {
         float currentWidth = SEARCH_ICON_SIZE
                 + (SEARCH_BAR_WIDTH - SEARCH_ICON_SIZE) * easeOutCubic(searchExpandProgress);
         float searchBarX = (width - currentWidth) / 2f;
-        if (mouseX >= searchBarX && mouseX <= searchBarX + currentWidth &&
-                mouseY >= searchBarY && mouseY <= searchBarY + SEARCH_ICON_SIZE) {
+        if (transformedMouseX >= searchBarX && transformedMouseX <= searchBarX + currentWidth &&
+                transformedMouseY >= searchBarY && transformedMouseY <= searchBarY + SEARCH_ICON_SIZE) {
             searchFocused = true;
             return true;
         }
@@ -452,24 +463,38 @@ public class NewClickGUI extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        float guiScale = getGuiScaleMultiplier();
+        float scale = easeOutCubic(animationProgress);
+        int centerX = width / 2;
+        int centerY = height / 2;
+        double transformedMouseX = (mouseX - centerX) / (scale * guiScale) + centerX;
+        double transformedMouseY = (mouseY - centerY) / (scale * guiScale) + centerY;
+
         if (configPanel != null) {
-            configPanel.mouseReleased(mouseX, mouseY, button);
+            configPanel.mouseReleased(transformedMouseX, transformedMouseY, button);
         }
 
         for (CategoryPanel panel : panels) {
-            panel.mouseReleased(mouseX, mouseY, button);
+            panel.mouseReleased(transformedMouseX, transformedMouseY, button);
         }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (configPanel != null && configPanel.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+        float guiScale = getGuiScaleMultiplier();
+        float scale = easeOutCubic(animationProgress);
+        int centerX = width / 2;
+        int centerY = height / 2;
+        double transformedMouseX = (mouseX - centerX) / (scale * guiScale) + centerX;
+        double transformedMouseY = (mouseY - centerY) / (scale * guiScale) + centerY;
+
+        if (configPanel != null && configPanel.mouseDragged(transformedMouseX, transformedMouseY, button, deltaX, deltaY)) {
             return true;
         }
 
         for (CategoryPanel panel : panels) {
-            if (panel.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+            if (panel.mouseDragged(transformedMouseX, transformedMouseY, button, deltaX, deltaY)) {
                 return true;
             }
         }
@@ -478,12 +503,19 @@ public class NewClickGUI extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (configPanel != null && configPanel.mouseScrolled(mouseX, mouseY, verticalAmount)) {
+        float guiScale = getGuiScaleMultiplier();
+        float scale = easeOutCubic(animationProgress);
+        int centerX = width / 2;
+        int centerY = height / 2;
+        double transformedMouseX = (mouseX - centerX) / (scale * guiScale) + centerX;
+        double transformedMouseY = (mouseY - centerY) / (scale * guiScale) + centerY;
+
+        if (configPanel != null && configPanel.mouseScrolled(transformedMouseX, transformedMouseY, verticalAmount)) {
             return true;
         }
 
         for (CategoryPanel panel : panels) {
-            if (panel.mouseScrolled(mouseX, mouseY, verticalAmount)) {
+            if (panel.mouseScrolled(transformedMouseX, transformedMouseY, verticalAmount)) {
                 return true;
             }
         }
@@ -535,6 +567,17 @@ public class NewClickGUI extends Screen {
         float transformedFriendsSize = FRIENDS_BUTTON_SIZE * scale;
         GuiGlowHelper.drawGuiGlow(context, transformedFriendsX, transformedFriendsY, transformedFriendsSize,
                 transformedFriendsSize, 6f * scale);
+    }
+
+    private float getGuiScaleMultiplier() {
+        int scaleValue = cc.silk.module.modules.client.ClientSettingsModule.getGuiScale();
+        switch (scaleValue) {
+            case 0: return 0.75f;
+            case 1: return 1.0f;
+            case 2: return 1.25f;
+            case 3: return 1.5f;
+            default: return 1.0f;
+        }
     }
 
     @Override

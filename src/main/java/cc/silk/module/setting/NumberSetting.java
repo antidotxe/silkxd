@@ -1,5 +1,6 @@
 package cc.silk.module.setting;
 
+import cc.silk.SilkClient;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,6 +23,7 @@ public class NumberSetting extends Setting {
     public void setValue(double value) {
         double precision = 1.0D / increment;
         this.value = Math.round(Math.max(min, Math.min(max, value)) * precision) / precision;
+        triggerAutoSave();
     }
 
     public int getValueInt() {
@@ -30,5 +32,9 @@ public class NumberSetting extends Setting {
 
     public float getValueFloat() {
         return (float) value;
+    }
+    
+    private void triggerAutoSave() {
+        cc.silk.utils.AutoSaveManager.getInstance().scheduleSave();
     }
 }
