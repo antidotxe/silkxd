@@ -17,6 +17,10 @@ public class NanoVGFrameManager {
     private static int savedElementBuffer = 0;
     private static int savedProgram = 0;
     private static int savedTexture = 0;
+    private static boolean savedBlendEnabled = false;
+    private static boolean savedDepthEnabled = false;
+    private static boolean savedCullEnabled = false;
+    private static boolean savedStencilEnabled = false;
 
     public static void beginFrame() {
         RenderSystem.assertOnRenderThread();
@@ -52,6 +56,12 @@ public class NanoVGFrameManager {
             savedElementBuffer = GL11.glGetInteger(GL15.GL_ELEMENT_ARRAY_BUFFER_BINDING);
             savedProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
             savedTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+            
+            // what u know about this elite level Management dovyrn :3
+            savedBlendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
+            savedDepthEnabled = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+            savedCullEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+            savedStencilEnabled = GL11.glIsEnabled(GL11.GL_STENCIL_TEST);
 
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
@@ -97,19 +107,37 @@ public class NanoVGFrameManager {
             mc.getFramebuffer().beginWrite(true);
         }
 
-        GL11.glEnable(GL11.GL_DEPTH_TEST);
-        GL11.glDisable(GL11.GL_STENCIL_TEST);
-
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
         GL30.glBindVertexArray(savedVAO);
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, savedArrayBuffer);
         GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, savedElementBuffer);
         GL20.glUseProgram(savedProgram);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, savedTexture);
-
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
+
+        if (savedDepthEnabled) {
+            GL11.glEnable(GL11.GL_DEPTH_TEST);
+        } else {
+            GL11.glDisable(GL11.GL_DEPTH_TEST);
+        }
+        
+        if (savedStencilEnabled) {
+            GL11.glEnable(GL11.GL_STENCIL_TEST);
+        } else {
+            GL11.glDisable(GL11.GL_STENCIL_TEST);  // holy Management spam :Sob:
+        }
+        
+        if (savedCullEnabled) {
+            GL11.glEnable(GL11.GL_CULL_FACE);
+        } else {
+            GL11.glDisable(GL11.GL_CULL_FACE);
+        }
+        
+        if (savedBlendEnabled) {
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            GL11.glDisable(GL11.GL_BLEND);
+        }
     }
 
     public static boolean isInFrame() {

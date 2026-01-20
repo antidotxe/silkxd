@@ -75,6 +75,7 @@ public record BuiltBlur(
 
         RenderSystem.setShaderTexture(0, 0);
         RenderSystem.enableCull();
-        RenderSystem.disableBlend();
     }
 }
+
+// i dont think there was a reason to delete ts but wtv 
