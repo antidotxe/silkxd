@@ -18,6 +18,7 @@ import net.minecraft.item.AxeItem;
 import net.minecraft.item.Items;
 import net.minecraft.util.hit.EntityHitResult;
 
+// unga_
 public final class ShieldBreaker extends Module {
 
     public static boolean breakingShield = false;
@@ -40,10 +41,11 @@ public final class ShieldBreaker extends Module {
     private final TimerUtil swapBackTimer = new TimerUtil();
 
     private int savedSlot = -1;
+
     public ShieldBreaker() {
         super("Shield Breaker", "Automatically breaks the opponent's shield", -1, Category.COMBAT);
         addSettings(
-               cps, reactionDelay, swapDelay, attackDelay, swapBackDelay,
+                cps, reactionDelay, swapDelay, attackDelay, swapBackDelay,
                 revertSlot, rayTraceCheck, disableIfUsingItem, ignoreFriends, autoStun
         );
     }
@@ -73,13 +75,37 @@ public final class ShieldBreaker extends Module {
         if (isNull())
             return;
 
+        PlayerEntity target = getTargetPlayer();
+
+        // Handle swapping back to original slot when not attacking a shielding player
+        if (savedSlot != -1 && swapBackTimer.hasElapsedTime(swapBackDelay.getValueInt())) {
+            boolean shouldSwapBack = false;
+
+            if (target == null) {
+                shouldSwapBack = true;
+            } else {
+                boolean isBlocking = target.isBlocking() && target.isHolding(Items.SHIELD);
+                boolean canBreak = !rayTraceCheck.getValue() || !CombatUtil.isShieldFacingAway(target);
+
+                if (!isBlocking || !canBreak) {
+                    shouldSwapBack = true;
+                }
+            }
+
+            if (shouldSwapBack) {
+                if (revertSlot.getValue())
+                    mc.player.getInventory().selectedSlot = savedSlot;
+                savedSlot = -1;
+                breakingShield = false;
+                return;
+            }
+        }
+
         if (!canRunAuto())
             return;
 
-        PlayerEntity target = getTargetPlayer();
         if (target == null)
             return;
-
 
         boolean isBlocking = target.isBlocking() && target.isHolding(Items.SHIELD);
         boolean canBreak = !rayTraceCheck.getValue() || !CombatUtil.isShieldFacingAway(target);
@@ -87,12 +113,6 @@ public final class ShieldBreaker extends Module {
         if (!isBlocking || !canBreak) {
             if (!reactionTimer.hasElapsedTime(reactionDelay.getValueInt() / 2))
                 reactionTimer.reset();
-
-            if (savedSlot != -1 && swapBackTimer.hasElapsedTime(swapBackDelay.getValueInt())) {
-                if (revertSlot.getValue())
-                    mc.player.getInventory().selectedSlot = savedSlot;
-                savedSlot = -1;
-            }
             return;
         }
 
@@ -107,9 +127,11 @@ public final class ShieldBreaker extends Module {
 
                 InventoryUtil.swapToWeapon(AxeItem.class);
                 attackTimer.reset();
+                swapTimer.reset();
             }
             return;
         }
+
         if (attackTimer.hasElapsedTime(attackDelay.getValueInt()) || savedSlot == -1) {
             ((MinecraftClientAccessor) mc).invokeDoAttack();
 
