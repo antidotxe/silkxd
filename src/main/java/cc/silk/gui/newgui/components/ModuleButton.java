@@ -48,7 +48,7 @@ public class ModuleButton {
                 searchAlpha = targetSearchAlpha;
         }
 
-        float hoverSpeed = 10f;
+        float hoverSpeed = 12f;
         if (hoverAlpha < targetHoverAlpha) {
             hoverAlpha += deltaTime * hoverSpeed;
             if (hoverAlpha > targetHoverAlpha)
@@ -90,14 +90,30 @@ public class ModuleButton {
             } else {
                 NanoVGRenderer.drawRect(x, y, buttonWidth, buttonHeight, enabledBg);
             }
-        } else if (hoverAlpha > 0.01f) {
-            float expandedHeight = buttonHeight * hoverAlpha;
-            Color hoverBg = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(),
-                    (int) (60 * combinedAlpha));
-            if (isLastVisible) {
-                NanoVGRenderer.drawRoundedRectVarying(x, y, buttonWidth, expandedHeight, 0f, 0f, cornerRadius, cornerRadius, hoverBg);
-            } else {
-                NanoVGRenderer.drawRect(x, y, buttonWidth, expandedHeight, hoverBg);
+            
+            if (hoverAlpha > 0.01f) {
+                Color hoverOverlay = new Color(255, 255, 255, (int) (30 * hoverAlpha * combinedAlpha));
+                if (isLastVisible) {
+                    NanoVGRenderer.drawRoundedRectVarying(x, y, buttonWidth, buttonHeight, 0f, 0f, cornerRadius, cornerRadius, hoverOverlay);
+                } else {
+                    NanoVGRenderer.drawRect(x, y, buttonWidth, buttonHeight, hoverOverlay);
+                }
+            }
+        } else {
+            if (hoverAlpha > 0.01f) {
+                float easedHover = easeOutCubic(hoverAlpha);
+                
+                Color hoverBg = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(),
+                        (int) (80 * easedHover * combinedAlpha));
+                if (isLastVisible) {
+                    NanoVGRenderer.drawRoundedRectVarying(x, y, buttonWidth, buttonHeight, 0f, 0f, cornerRadius, cornerRadius, hoverBg);
+                } else {
+                    NanoVGRenderer.drawRect(x, y, buttonWidth, buttonHeight, hoverBg);
+                }
+                
+                Color glowColor = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(),
+                        (int) (40 * easedHover * combinedAlpha));
+                NanoVGRenderer.drawRect(x, y, 2, buttonHeight, glowColor);
             }
         }
 
@@ -111,8 +127,9 @@ public class ModuleButton {
         if (module.isEnabled()) {
             textColor = new Color(255, 255, 255, (int) (255 * combinedAlpha));
         } else if (hoverAlpha > 0.01f) {
+            float easedHover = easeOutCubic(hoverAlpha);
             int baseAlpha = 130;
-            int hoverBoost = (int) (110 * hoverAlpha);
+            int hoverBoost = (int) (125 * easedHover);
             textColor = new Color(200, 200, 210, (int) ((baseAlpha + hoverBoost) * combinedAlpha));
         } else {
             textColor = new Color(130, 130, 140, (int) (255 * combinedAlpha));
@@ -140,6 +157,10 @@ public class ModuleButton {
                 NanoVGRenderer.drawText(keyName, keybindX, keybindY, keybindFontSize, keybindColor);
             }
         }
+    }
+    
+    private float easeOutCubic(float t) {
+        return 1f - (float) Math.pow(1f - t, 3);
     }
 
     public boolean mouseClicked(float panelX, float panelY, double mouseX, double mouseY, int button) {

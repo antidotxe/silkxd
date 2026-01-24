@@ -18,6 +18,9 @@ public class SettingsPanel {
     private static final int SETTING_HEIGHT = 16;
     private static final int NUMBER_SETTING_HEIGHT = 22;
     private static final int PADDING = GuiConstants.PADDING;
+    private static final float TOGGLE_ANIMATION_SPEED = 0.15f;
+    private static final float SLIDER_ANIMATION_SPEED = 0.12f;
+    
     private final Module module;
     private final int width = 160;
     private float targetX, currentX, y;
@@ -37,6 +40,10 @@ public class SettingsPanel {
     private String rangeInputText = "";
     private int screenWidth = 0;
     private int screenHeight = 0;
+    
+    private final java.util.Map<Setting, Float> animatedValues = new java.util.HashMap<>();
+    private final java.util.Map<Setting, Float> animatedHandlePositions = new java.util.HashMap<>();
+    private final java.util.Map<Setting, Float> hoverAnimations = new java.util.HashMap<>();
 
     public SettingsPanel(Module module, float x, float y) {
         this.module = module;
@@ -208,10 +215,22 @@ public class SettingsPanel {
         NanoVGRenderer.drawRoundedRect(currentX + PADDING, sliderY, sliderWidth, sliderHeight, sliderRadius, sliderBg);
 
         double range = setting.getMax() - setting.getMin();
-        double minPercentage = range > 0 ? (setting.getMinValue() - setting.getMin()) / range : 0;
-        double maxPercentage = range > 0 ? (setting.getMaxValue() - setting.getMin()) / range : 1;
-        float minX = (float) (sliderWidth * minPercentage);
-        float maxX = (float) (sliderWidth * maxPercentage);
+        double targetMinPercentage = range > 0 ? (setting.getMinValue() - setting.getMin()) / range : 0;
+        double targetMaxPercentage = range > 0 ? (setting.getMaxValue() - setting.getMin()) / range : 1;
+        
+        String minKey = setting.getName() + "_min";
+        String maxKey = setting.getName() + "_max";
+        
+        float currentMinPercentage = animatedValues.getOrDefault(setting, (float) targetMinPercentage);
+        currentMinPercentage += ((float) targetMinPercentage - currentMinPercentage) * SLIDER_ANIMATION_SPEED;
+        animatedValues.put(setting, currentMinPercentage);
+        
+        float currentMaxPercentage = animatedHandlePositions.getOrDefault(setting, (float) targetMaxPercentage);
+        currentMaxPercentage += ((float) targetMaxPercentage - currentMaxPercentage) * SLIDER_ANIMATION_SPEED;
+        animatedHandlePositions.put(setting, currentMaxPercentage);
+        
+        float minX = sliderWidth * currentMinPercentage;
+        float maxX = sliderWidth * currentMaxPercentage;
         float fillWidth = maxX - minX;
 
         if (fillWidth > 0) {
@@ -247,6 +266,16 @@ public class SettingsPanel {
         NanoVGRenderer.drawText(displayText, currentX + PADDING, settingY + 2, fontSize, textColor);
         NanoVGRenderer.drawText(valueText, currentX + width - PADDING - valueWidth, settingY + 2, fontSize, valueColor);
     }
+    
+    private Color mixColor(Color a, Color b, float t) {
+        t = Math.max(0f, Math.min(1f, t));
+        int r = (int) (a.getRed() + (b.getRed() - a.getRed()) * t);
+        int g = (int) (a.getGreen() + (b.getGreen() - a.getGreen()) * t);
+        int bl = (int) (a.getBlue() + (b.getBlue() - a.getBlue()) * t);
+        int alpha = (int) (a.getAlpha() + (b.getAlpha() - a.getAlpha()) * t);
+        return new Color(Math.max(0, Math.min(255, r)), Math.max(0, Math.min(255, g)), 
+                        Math.max(0, Math.min(255, bl)), Math.max(0, Math.min(255, alpha)));
+    }
 
     private void renderBooleanSetting(BooleanSetting setting, float settingY, int mouseX, int mouseY, float alpha) {
         float toggleWidth = cc.silk.module.modules.client.ClientSettingsModule.getToggleWidth();
@@ -254,24 +283,50 @@ public class SettingsPanel {
         float toggleX = currentX + width - PADDING - toggleWidth;
         float toggleY = settingY + 3;
 
+        boolean isHovered = mouseX >= toggleX && mouseX <= toggleX + toggleWidth &&
+                           mouseY >= toggleY && mouseY <= toggleY + toggleHeight;
+        
+        float targetHover = isHovered ? 1f : 0f;
+        float currentHover = hoverAnimations.getOrDefault(setting, 0f);
+        currentHover += (targetHover - currentHover) * 0.2f;
+        hoverAnimations.put(setting, currentHover);
+
         int bgAlpha = (int) (255 * alpha);
         boolean isOn = setting.getValue();
 
+        float targetProgress = isOn ? 1f : 0f;
+        float currentProgress = animatedValues.getOrDefault(setting, targetProgress);
+        currentProgress += (targetProgress - currentProgress) * TOGGLE_ANIMATION_SPEED;
+        animatedValues.put(setting, currentProgress);
+
         Color accentColor = getAccentColor();
-        Color toggleBg = isOn
-                ? new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), bgAlpha)
-                : new Color(40, 40, 46, bgAlpha);
+        Color offColor = new Color(40, 40, 46, bgAlpha);
+        Color onColor = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), bgAlpha);
+        Color toggleBg = mixColor(offColor, onColor, currentProgress);
+        
+        if (currentHover > 0.01f) {
+            Color hoverOverlay = new Color(255, 255, 255, (int) (20 * currentHover * alpha));
+            toggleBg = mixColor(toggleBg, hoverOverlay, currentHover * 0.3f);
+        }
 
         NanoVGRenderer.drawRoundedRect(toggleX, toggleY, toggleWidth, toggleHeight, toggleHeight / 2f, toggleBg);
 
         float handleSize = toggleHeight - 4;
-        float handleX = isOn
-                ? toggleX + toggleWidth - handleSize - 2
-                : toggleX + 2;
+        float handleMinX = toggleX + 2;
+        float handleMaxX = toggleX + toggleWidth - handleSize - 2;
+        float handleX = handleMinX + (handleMaxX - handleMinX) * currentProgress;
         float handleY = toggleY + 2;
 
         Color handleColor = new Color(255, 255, 255, bgAlpha);
-        NanoVGRenderer.drawCircle(handleX + handleSize / 2f, handleY + handleSize / 2f, handleSize / 2f, handleColor);
+        float handleRadius = handleSize / 2f;
+        
+        if (currentHover > 0.01f) {
+            Color handleGlow = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(),
+                    (int) (80 * currentHover * alpha));
+            NanoVGRenderer.drawCircle(handleX + handleRadius, handleY + handleRadius, handleRadius + 2f, handleGlow);
+        }
+        
+        NanoVGRenderer.drawCircle(handleX + handleRadius, handleY + handleRadius, handleRadius, handleColor);
 
         Color textColor = new Color(200, 200, 200, bgAlpha);
         float fontSize = 9f;
@@ -289,13 +344,20 @@ public class SettingsPanel {
         Color sliderFill = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), bgAlpha);
         Color textColor = new Color(200, 200, 200, bgAlpha);
         Color valueColor = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), bgAlpha);
+        
         NanoVGRenderer.drawRoundedRect(currentX + PADDING, sliderY, sliderWidth, sliderHeight, sliderRadius, sliderBg);
-        double percentage = (setting.getValue() - setting.getMin()) / (setting.getMax() - setting.getMin());
-        float fillWidth = (float) (sliderWidth * percentage);
+        
+        double targetPercentage = (setting.getValue() - setting.getMin()) / (setting.getMax() - setting.getMin());
+        float currentPercentage = animatedHandlePositions.getOrDefault(setting, (float) targetPercentage);
+        currentPercentage += ((float) targetPercentage - currentPercentage) * SLIDER_ANIMATION_SPEED;
+        animatedHandlePositions.put(setting, currentPercentage);
+        
+        float fillWidth = sliderWidth * currentPercentage;
         if (fillWidth > 0) {
             NanoVGRenderer.drawRoundedRect(currentX + PADDING, sliderY, fillWidth, sliderHeight, sliderRadius,
                     sliderFill);
         }
+        
         float handleRadius = cc.silk.module.modules.client.ClientSettingsModule.getSliderHandleSize();
         float handleX = currentX + PADDING + fillWidth;
         float handleY = sliderY + sliderHeight / 2f;
@@ -304,6 +366,7 @@ public class SettingsPanel {
         NanoVGRenderer.drawCircle(handleX, handleY, handleRadius + 1.5f, handleGlow);
         Color handleColor = new Color(255, 255, 255, bgAlpha);
         NanoVGRenderer.drawCircle(handleX, handleY, handleRadius, handleColor);
+        
         String displayText = setting.getName();
 
         String valueText;
