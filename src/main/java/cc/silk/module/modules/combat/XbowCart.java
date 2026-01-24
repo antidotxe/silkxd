@@ -18,7 +18,7 @@ import java.util.List;
 public final class XbowCart extends Module {
 
     private final BooleanSetting manualMode = new BooleanSetting("Manual", false);
-    private final NumberSetting manualDelay = new NumberSetting("Manual Delay (ms)", 0, 200, 50, 10);
+    private final NumberSetting manualDelay = new NumberSetting("Manual Delay", 0, 10, 1, 1);
     private final ModeSetting firstAction = new ModeSetting("First", "Fire", "Fire", "Rail", "None");
     private final ModeSetting secondAction = new ModeSetting("Second", "Rail", "Fire", "Rail", "None");
     private final ModeSetting thirdAction = new ModeSetting("Third", "None", "Fire", "Rail", "None");
@@ -30,7 +30,9 @@ public final class XbowCart extends Module {
     private final List<String> sequence = new ArrayList<>();
     
     private int manualStep = 0;
-    private long switchTime = 0;
+    private boolean shouldExecute = false;
+    private boolean shouldSwitch = false;
+    private int executeDelay = 0;
 
     public XbowCart() {
         super("Xbow cart", "Customizable cart placement module", -1, Category.COMBAT);
@@ -46,7 +48,9 @@ public final class XbowCart extends Module {
         
         if (manualMode.getValue()) {
             manualStep = 0;
-            switchTime = 0;
+            shouldExecute = false;
+            shouldSwitch = false;
+            executeDelay = 0;
             active = true;
         } else {
             sequence.clear();
@@ -77,58 +81,66 @@ public final class XbowCart extends Module {
         
         ItemStack heldStack = mc.player.getMainHandStack();
         net.minecraft.item.Item currentItem = heldStack.isEmpty() ? null : heldStack.getItem();
-        
-        long delayMs = manualDelay.getValueInt();
 
         switch (manualStep) {
             case 0:
                 if (isRailItem(currentItem)) {
                     manualStep = 1;
-                    switchTime = System.currentTimeMillis() + delayMs;
+                    shouldSwitch = true;
                 }
                 break;
 
             case 1:
                 if (currentItem == Items.TNT_MINECART) {
                     manualStep = 2;
-                    switchTime = System.currentTimeMillis() + delayMs;
+                    shouldSwitch = true;
                 } else if (isRailItem(currentItem)) {
                     manualStep = 1;
-                    switchTime = System.currentTimeMillis() + delayMs;
+                    shouldSwitch = true;
                 }
                 break;
 
             case 2:
                 if (currentItem == Items.FLINT_AND_STEEL) {
                     manualStep = 3;
-                    switchTime = System.currentTimeMillis() + delayMs;
+                    shouldSwitch = true;
                 } else if (isRailItem(currentItem)) {
                     manualStep = 1;
-                    switchTime = System.currentTimeMillis() + delayMs;
+                    shouldSwitch = true;
                 }
                 break;
 
             case 3:
                 if (isRailItem(currentItem)) {
                     manualStep = 1;
-                    switchTime = System.currentTimeMillis() + delayMs;
+                    shouldSwitch = true;
                 }
                 break;
         }
     }
 
     private void handleManualModeTick() {
-        if (switchTime > 0 && System.currentTimeMillis() >= switchTime) {
-            switchTime = 0;
+        if (executeDelay > 0) {
+            executeDelay--;
+            return;
+        }
+        
+        if (shouldSwitch) {
+            shouldSwitch = false;
+            executeDelay = manualDelay.getValueInt();
             
             switch (manualStep) {
                 case 1:
-                    if (!switchToItem(Items.TNT_MINECART)) {
+                    if (switchToItem(Items.TNT_MINECART)) {
+                        shouldExecute = true;
+                    } else {
                         manualStep = 0;
                     }
                     break;
                 case 2:
-                    if (!switchToItem(Items.FLINT_AND_STEEL)) {
+                    if (switchToItem(Items.FLINT_AND_STEEL)) {
+                        shouldExecute = true;
+                    } else {
                         manualStep = 0;
                     }
                     break;
@@ -137,12 +149,44 @@ public final class XbowCart extends Module {
                     manualStep = 0;
                     break;
             }
+            return;
         }
         
-        if (switchTime > 0 && System.currentTimeMillis() > switchTime + 1000) {
-            manualStep = 0;
-            switchTime = 0;
+        if (shouldExecute) {
+            shouldExecute = false;
+            
+            switch (manualStep) {
+                case 1:
+                    ((MinecraftClientAccessor) mc).invokeDoItemUse();
+                    break;
+                case 2:
+                    break;
+            }
         }
+        
+        if (manualStep == 2 && mc.player.getVehicle() == null) {
+            ItemStack heldStack = mc.player.getMainHandStack();
+            if (!heldStack.isEmpty() && heldStack.getItem() == Items.FLINT_AND_STEEL) {
+                net.minecraft.util.hit.HitResult hit = mc.crosshairTarget;
+                if (hit != null && hit.getType() == net.minecraft.util.hit.HitResult.Type.BLOCK) {
+                    net.minecraft.util.hit.BlockHitResult blockHit = (net.minecraft.util.hit.BlockHitResult) hit;
+                    net.minecraft.block.BlockState state = mc.world.getBlockState(blockHit.getBlockPos());
+                    
+                    if (!isRailBlock(state.getBlock())) {
+                        ((MinecraftClientAccessor) mc).invokeDoItemUse();
+                        manualStep = 3;
+                        shouldSwitch = true;
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isRailBlock(net.minecraft.block.Block block) {
+        return block == net.minecraft.block.Blocks.RAIL || 
+               block == net.minecraft.block.Blocks.POWERED_RAIL || 
+               block == net.minecraft.block.Blocks.DETECTOR_RAIL || 
+               block == net.minecraft.block.Blocks.ACTIVATOR_RAIL;
     }
 
     private void handleAutoMode() {
