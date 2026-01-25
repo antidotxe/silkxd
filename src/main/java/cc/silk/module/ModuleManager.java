@@ -61,7 +61,8 @@ public final class ModuleManager {
                 new AntiMiss(), new WTap(), new STap(),
                 new AimAssist(), new SwordHotSwap(), new AutoCrystal(), new SwordSwap(), new BreachSwap(),
                 new KeyCrystal(), new KeyAnchor(), new KeyLava(), new AutoPot(), //new StunCob(),
-                new AutoCart(), new CrystalOptimizer(), new Criticals(), new XbowCart(), new Hitboxes());
+                new AutoCart(), new CrystalOptimizer(), new Criticals(), new XbowCart(), new Hitboxes(),
+                new SafeAnchor());
         // Movement
         add(new Sprint(), new AutoFirework(), new AutoHeadHitter(), new KeepSprint(), new SnapTap());
 
@@ -77,7 +78,7 @@ public final class ModuleManager {
                 new ContainerSlots(), new FullBright(), new Watermark(), new TargetHUD(),
                 new SwingSpeed(),
                 new Notifications(), new ArrowESP(), new OutlineESP(), new CustomOutlineESP(), new ESP2D(), new ESP3D(), new TargetESP(),
-                new ArrayList(), new Trajectories(), new BlurTest(), new AspectRatio(), new Nametags());
+                new ArrayList(), new Trajectories(), new BlurTest(), new AspectRatio());
 
         // Misc
         add(
