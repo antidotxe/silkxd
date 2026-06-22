@@ -67,6 +67,6 @@ Silk is no longer actively maintained. Only forks or clones may continue develop
 
 License
 
-MIT License Do whatever you want.
+sell = dmca 
 
 Formly Known as OpenVolt
